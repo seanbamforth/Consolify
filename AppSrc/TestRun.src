@@ -1,0 +1,18 @@
+Use Windows.pkg
+Use cHtmlHelp.pkg
+Use cApplication.pkg
+Use console.pkg
+
+Object oHtmlHelp is a cHtmlHelp
+End_Object
+
+Object oApplication is a cApplication
+    Set pbPreserveEnvironment to False
+    Set peHelpType to htHtmlHelp
+End_Object
+
+Send WriteConsole "Notice how the Cursor gets messed up."
+Send WriteConsole "In fact - if the program takes a while to run"
+Send WriteConsole "You can still type things into your dos shell."
+Send WriteConsole "The APP is a windows app. It doesn't play nice."
+Send WriteConsole "Let's see if we can fix that."

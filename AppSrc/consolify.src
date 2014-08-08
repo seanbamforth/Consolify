@@ -1,0 +1,186 @@
+Use Windows.pkg
+Use cHtmlHelp.pkg
+Use cApplication.pkg
+Use console.pkg
+
+Object oHtmlHelp is a cHtmlHelp
+End_Object
+
+Object oApplication is a cApplication
+    Set pbPreserveEnvironment to False
+    Set peHelpType to htHtmlHelp
+End_Object
+
+
+//9460301
+Define IMAGE_DOS_SIGNATURE for 23117
+//Move &H5A4D to IMAGE_DOS_SIGNATURE
+
+Define IMAGE_SUBSYSTEM_WINDOWS_GUI for 2
+Define IMAGE_SUBSYSTEM_WINDOWS_CUI for 3
+
+Struct tDosHeader
+    UShort e_magic  
+    UShort e_cblp 
+    UShort e_cp 
+    UShort e_crlc 
+    UShort e_cparhdr 
+    UShort e_minalloc 
+    UShort e_maxalloc 
+    UShort e_ss 
+    UShort e_sp 
+    UShort e_csum 
+    UShort e_ip 
+    UShort e_cs 
+    UShort e_lfarlc 
+    UShort e_ovno 
+    UShort[16] e_res
+    UInteger e_lfanew 
+End_Struct
+
+Struct tImageFileHeader
+    UChar[4] Signature
+    UShort Machine 
+    UShort NumberOfSections 
+    UInteger TimeDateStamp 
+    UInteger PointerToSymbolTable 
+    UInteger NumberOfSymbols 
+    UShort SizeOfOptionalHeader 
+    UShort Characteristics 
+End_Struct
+
+Struct tIMAGE_OPTIONAL_HEADER
+    UShort     op_Magic 
+    UChar     op_MajorLinkerVersion 
+    UChar     op_MinorLinkerVersion 
+    UInteger     op_SizeOfCode 
+    UInteger     op_SizeOfInitializedData 
+    UInteger     op_SizeOfUninitializedData 
+    UInteger     op_AddressOfEntryPoint 
+    UInteger     op_BaseOfCode 
+    UInteger     op_BaseOfData 
+    UInteger     op_ImageBase 
+    UInteger     op_SectionAlignment 
+    UInteger     op_FileAlignment 
+    UShort     op_MajorOperatingSystemVersion 
+    UShort     op_MinorOperatingSystemVersion 
+    UShort     op_MajorImageVersion 
+    UShort     op_MinorImageVersion 
+    UShort     op_MajorSubsystemVersion 
+    UShort     op_MinorSubsystemVersion 
+    UInteger     op_Win32VersionValue 
+    UInteger     op_SizeOfImage 
+    UInteger     op_SizeOfHeaders 
+    UInteger     op_CheckSum 
+    UShort     op_Subsystem 
+    UShort     op_DllCharacteristics 
+    UInteger     op_SizeOfStackReserve 
+    UInteger     op_SizeOfStackCommit 
+    UInteger     op_SizeOfHeapReserve 
+    UInteger     op_SizeOfHeapCommit 
+    UInteger     op_LoaderFlags 
+    UInteger     op_NumberOfRvaAndSizes 
+End_Struct
+
+//todo: error messages 
+
+Object oMain is a cObject 
+    Procedure ConvertFile String sFile 
+        Boolean isOK 
+        Integer iCH
+        tDosHeader DosHeader 
+        String sTmp
+        String sNew 
+        Pointer pStr
+        UInteger iNTSignature  
+        tImageFileHeader FileHeader
+        tIMAGE_OPTIONAL_HEADER OptionalHeader 
+        
+        File_Exist sFile isOK 
+        If (not(isOK)) Begin 
+            Send WriteConsole "Error. File was not found"
+            Procedure_Return 
+        End
+        
+        Move (Seq_New_Channel()) to iCH 
+        Append_Output channel iCH ("BINARY:"+sFile)
+        Set_Channel_Position iCH to 0
+        
+        Move (Repeat("-", (SizeOfType(tDOsHeader)) )) to sTmp 
+        Read_Block channel iCH sTmp (SizeOfType(tDOsHeader)) 
+        Move (MemCopy( AddressOf(DosHeader), AddressOf(sTmp), (SizeOfType(tDOsHeader)) )) to isOK 
+        
+        If (DosHeader.e_magic <> IMAGE_DOS_SIGNATURE) Begin 
+            Close_Input channel iCH 
+            Send Seq_Release_Channel iCH 
+            Send WriteConsole "Error. This file is not an executable"
+            Procedure_Return 
+        End
+        
+        Move (Repeat("-", 64 )) to sTmp 
+        Read_Block channel iCH sTmp 63
+        Append sTmp (Character(0))
+        Move (Mid(sTmp,30,15)) to sTmp 
+    
+        Set_Channel_Position iCH to (DosHeader.e_lfanew)
+        Move (Repeat("-", (SizeOfType(tImageFileHeader)) )) to sTmp 
+        Read_Block channel iCH sTmp (SizeOfType(tImageFileHeader)) 
+        Move (MemCopy( AddressOf(FileHeader), AddressOf(sTmp), (SizeOfType(tImageFileHeader)) )) to isOK 
+    
+        Set_Channel_Position iCH to (DosHeader.e_lfanew+(SizeOfType(tImageFileHeader)))
+        Move (Repeat("-", (SizeOfType(tIMAGE_OPTIONAL_HEADER)) )) to sTmp 
+        Read_Block channel iCH sTmp (SizeOfType(tIMAGE_OPTIONAL_HEADER)) 
+        Move (MemCopy( AddressOf(OptionalHeader), AddressOf(sTmp), (SizeOfType(tIMAGE_OPTIONAL_HEADER)) )) to isOK 
+    
+        If (OptionalHeader.op_Subsystem = IMAGE_SUBSYSTEM_WINDOWS_GUI) Begin
+            Set_Channel_Position iCH to (DosHeader.e_lfanew+(SizeOfType(tImageFileHeader)))
+            Move IMAGE_SUBSYSTEM_WINDOWS_CUI to OptionalHeader.op_Subsystem 
+    
+            Move (Repeat("-", (SizeOfType(tIMAGE_OPTIONAL_HEADER)) )) to sTmp 
+            Move (MemCopy( AddressOf(sTmp), AddressOf(OptionalHeader), (SizeOfType(tIMAGE_OPTIONAL_HEADER)) )) to isOK 
+            Write channel iCH sTmp 
+            Send WriteConsole "File converted."
+        End 
+        Else Send WriteConsole "Error: File Already Converted"
+    
+        Close_Output channel iCH 
+        Send Seq_Release_Channel iCH 
+    End_Procedure
+    
+    Procedure Instructions
+        Send WriteConsole ("Consolify")
+        Send WriteConsole "==========="
+        Send WriteConsole "consolify {filename} to convert the file for running in a command shell"
+    End_Procedure 
+    
+    Function addFolder String sFilename Returns String 
+        String sFolder
+        
+        If ((Pos("\",sFileName))=0) Begin 
+            Get_Current_Directory to sFolder 
+            If ((Right(sFolder,1))<>"\") Move (sFolder+"\") to sFolder 
+            Move (sFolder+sFileName) to sFileName 
+        End
+        Function_Return sFileName
+    End_Function
+    
+    Procedure doConvertFile 
+        String sFilename 
+        
+        cmdline sFileName 
+        
+        If (sFileName="") Begin 
+            Send Instructions 
+            Procedure_Return            
+        End
+        
+        Move (AddFolder(Self,sFileName)) to sFileName
+        Send WriteConsole ("Consolify")
+        Send WriteConsole "==========================================="
+        Send WriteConsole sFilename 
+        Send ConvertFile sFilename 
+    End_Procedure
+    
+End_Object
+
+Send doConvertFile to oMain 

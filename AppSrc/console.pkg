@@ -1,0 +1,58 @@
+Define ATTACH_PARENT_PROCESS for -1 // ATTACH_PARENT_PROCESS (DWord)-1
+
+
+//BOOL WINAPI AttachConsole(
+//  __in  DWord dwProcessId
+//);
+
+External_Function Win32AttachConsole "AttachConsole" Kernel32.dll DWord dwProcessID Returns Integer
+
+
+Define STD_INPUT_HANDLE     for -10  // STD_INPUT_HANDLE (DWord)-10
+Define STD_OUTPUT_HANDLE    for -11  // STD_OUTPUT_HANDLE (DWord)-11
+Define STD_ERROR_HANDLE     for -12  //STD_ERROR_HANDLE (DWord)-12
+
+Define INVALID_HANDLE_VALUE for -1
+
+//Handle WINAPI GetStdHandle(
+//  __in  DWord nStdHandle
+//);
+
+External_Function Win32GetStdHandle "GetStdHandle" Kernel32.dll DWord nStdHandle Returns Integer
+
+//BOOL WINAPI WriteConsole(
+//  __in        Handle hConsoleOutput,
+//  __in        const VOID *lpBuffer,
+//  __in        DWord nNumberOfCharsToWrite,
+//  __out       LPDWORD lpNumberOfCharsWritten,
+//  __reserved  LPVOID lpReserved
+//);
+
+External_Function Win32WriteConsole "WriteConsoleA" Kernel32.dll Handle hConsole Pointer lpBuffer ;
+   DWord nCharsToWrite Pointer lpnCharsWritten Pointer lpReserved Returns Integer 
+
+Function OpenConsole Returns Handle
+  Integer iRetVal
+  
+  Move (Win32AttachConsole(ATTACH_PARENT_PROCESS)) to iRetVal // Can only call this once!
+  
+  Move (Win32GetStdHandle(STD_OUTPUT_HANDLE)) to iRetVal
+  Function_Return iRetVal
+End_Function
+
+Procedure WriteConsole Global String sParam
+  String  sMessage
+  Handle  hConsole
+  Handle  lpnCharsWritten
+  Integer iCharsWritten
+  Integer iRetVal
+  
+  Move (sParam+(Character(10))+(Character(13))) to sParam
+  
+  Move 0 to iCharsWritten
+  Get OpenConsole to hConsole
+  ZeroString (Length(sParam)+1) to sMessage
+  Move (sParam+(character(0))) to sMessage
+  Move (AddressOf(iCharsWritten)) to lpnCharsWritten
+  Move (Win32WriteConsole(hConsole,AddressOf(sMessage),Length(sParam),lpnCharsWritten,0)) to iRetval
+End_Procedure
